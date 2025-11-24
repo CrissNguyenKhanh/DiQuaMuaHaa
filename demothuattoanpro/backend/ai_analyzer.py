@@ -10,6 +10,8 @@ class PatientAIAnalyzer:
     def __init__(self, data=None):
         self.data = data if data else PATIENT_DATA
         self.df = pd.DataFrame(self.data)
+        # Vì bạn không load model từ file → luôn xem như "đã load"
+        self.is_loaded = True
         
     def analyze_by_diagnosis(self):
         """Phân tích thống kê theo chẩn đoán"""

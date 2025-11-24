@@ -14,16 +14,10 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import {
-  Users,
-  Activity,
-  TrendingUp,
-  Brain,
-  AlertCircle,
-} from "lucide-react";
+import { Users, Activity, TrendingUp, Brain, AlertCircle } from "lucide-react";
 import "./PatientStatistics.css";
 
-const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#6366f1"];
 
 const PatientStatistics = () => {
   const [stats, setStats] = useState(null);
@@ -31,23 +25,22 @@ const PatientStatistics = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Gọi API Python backend
-    fetch('http://localhost:5000/api/statistics')
-      .then(response => {
+    fetch("http://localhost:5000/api/statistics")
+      .then((response) => {
         if (!response.ok) {
-          throw new Error('Lỗi kết nối đến server');
+          throw new Error("Lỗi kết nối đến server");
         }
         return response.json();
       })
-      .then(data => {
+      .then((data) => {
         setStats(data);
         setIsLoading(false);
         setError(null);
       })
-      .catch(err => {
-        setError('Không thể kết nối đến server Python. Vui lòng đảm bảo server đang chạy tại http://localhost:5000');
+      .catch((err) => {
+        setError("Không thể kết nối đến server Python. Đảm bảo backend đang chạy.");
         setIsLoading(false);
-        console.error('Error:', err);
+        console.error("Error:", err);
       });
   }, []);
 
@@ -66,10 +59,7 @@ const PatientStatistics = () => {
         <AlertCircle className="patient-statistics-error-icon" />
         <h2 className="patient-statistics-error-title">Lỗi kết nối</h2>
         <p className="patient-statistics-error-message">{error}</p>
-        <button 
-          onClick={() => window.location.reload()} 
-          className="patient-statistics-retry-button"
-        >
+        <button onClick={() => window.location.reload()} className="patient-statistics-retry-button">
           Thử lại
         </button>
       </div>
@@ -113,7 +103,9 @@ const PatientStatistics = () => {
           <div className="patient-statistics-summary-card">
             <TrendingUp className="patient-statistics-summary-icon" />
             <div>
-              <h3 className="patient-statistics-summary-value">{stats.prediction || "N/A"}</h3>
+              <h3 className="patient-statistics-summary-value" style={{ fontSize: '1.2rem' }}>
+                {stats.prediction || "N/A"}
+              </h3>
               <p className="patient-statistics-summary-label">Xu hướng dự đoán</p>
             </div>
           </div>
@@ -129,32 +121,43 @@ const PatientStatistics = () => {
 
         {/* Charts Grid */}
         <div className="patient-statistics-charts-grid">
-          {/* Pie Chart - Chẩn đoán */}
+          
+          {/* --- [FIXED] PIE CHART: Chẩn đoán --- */}
           {stats.diagnosisStats && stats.diagnosisStats.length > 0 && (
             <div className="patient-statistics-chart-card">
               <h2 className="patient-statistics-chart-title">Phân bố theo Chẩn đoán</h2>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={stats.diagnosisStats}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percentage }) => `${name}: ${percentage}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {stats.diagnosisStats.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+              <div style={{ width: '100%', height: 350 }}> {/* Tăng chiều cao để chứa Legend */}
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie
+                      data={stats.diagnosisStats}
+                      cx="50%"
+                      cy="45%" // Đẩy biểu đồ lên một chút để nhường chỗ cho Legend
+                      labelLine={true} // Bật đường kẻ chỉ dẫn ra ngoài
+                      label={({ name, percentage }) => `${percentage}%`} // Chỉ hiện % trên biểu đồ cho gọn
+                      outerRadius={100} // Tăng kích thước biểu đồ
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {stats.diagnosisStats.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value, name, props) => [
+                        `${value} ca (${props.payload.percentage}%)`, 
+                        name
+                      ]} 
+                    />
+                    <Legend 
+                      layout="horizontal" 
+                      verticalAlign="bottom" 
+                      align="center"
+                      wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           )}
 
@@ -162,14 +165,20 @@ const PatientStatistics = () => {
           {stats.symptomStats && stats.symptomStats.length > 0 && (
             <div className="patient-statistics-chart-card">
               <h2 className="patient-statistics-chart-title">Top Triệu chứng phổ biến</h2>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={stats.symptomStats}>
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={stats.symptomStats} margin={{ bottom: 40 }}> {/* Thêm margin bottom cho text nghiêng */}
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="value" fill="#3b82f6" />
+                  <XAxis
+                    dataKey="name"
+                    angle={-45}
+                    textAnchor="end"
+                    interval={0}
+                    height={80}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip cursor={{ fill: '#f3f4f6' }} />
+                  <Bar dataKey="value" name="Số lượng" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -183,16 +192,15 @@ const PatientStatistics = () => {
                 <BarChart data={stats.ageStats}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
-                  <YAxis />
+                  <YAxis allowDecimals={false} />
                   <Tooltip />
-                  <Legend />
-                  <Bar dataKey="value" fill="#10b981" />
+                  <Bar dataKey="value" name="Số lượng" fill="#10b981" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           )}
 
-          {/* Pie Chart - Giới tính */}
+          {/* Pie Chart - Giới tính (Giữ nguyên style gọn gàng) */}
           {stats.genderStats && stats.genderStats.length > 0 && (
             <div className="patient-statistics-chart-card">
               <h2 className="patient-statistics-chart-title">Phân bố theo Giới tính</h2>
@@ -203,19 +211,17 @@ const PatientStatistics = () => {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percentage }) => `${name}: ${percentage}%`}
-                    outerRadius={80}
+                    label={({ name, percentage }) => `${name} (${percentage}%)`}
+                    outerRadius={90}
                     fill="#8884d8"
                     dataKey="value"
                   >
                     {stats.genderStats.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
-                      />
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip />
+                  <Legend verticalAlign="bottom" height={36}/>
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -229,14 +235,16 @@ const PatientStatistics = () => {
                 <LineChart data={stats.trends}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
-                  <YAxis />
+                  <YAxis allowDecimals={false} />
                   <Tooltip />
-                  <Legend />
                   <Line
                     type="monotone"
                     dataKey="value"
+                    name="Số ca khám"
                     stroke="#8b5cf6"
-                    strokeWidth={2}
+                    strokeWidth={3}
+                    dot={{ r: 4 }}
+                    activeDot={{ r: 8 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -251,10 +259,9 @@ const PatientStatistics = () => {
                 <BarChart data={stats.severityStats}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
-                  <YAxis />
+                  <YAxis allowDecimals={false} />
                   <Tooltip />
-                  <Legend />
-                  <Bar dataKey="value" fill="#ef4444" />
+                  <Bar dataKey="value" name="Số lượng" fill="#ef4444" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -269,20 +276,18 @@ const PatientStatistics = () => {
           </div>
           <div className="patient-statistics-insights-content">
             <p>
-              <strong>Xu hướng:</strong> {stats.prediction || "N/A"}
+              <strong>Dự đoán xu hướng bệnh:</strong> {stats.prediction || "Chưa có dữ liệu"}
             </p>
             {stats.diagnosisStats && stats.diagnosisStats.length > 0 && (
               <p>
                 <strong>Chẩn đoán phổ biến nhất:</strong>{" "}
-                {stats.diagnosisStats[0]?.name} (
-                {stats.diagnosisStats[0]?.percentage}%)
+                {stats.diagnosisStats[0]?.name} (chiếm {stats.diagnosisStats[0]?.percentage}%)
               </p>
             )}
             {stats.symptomStats && stats.symptomStats.length > 0 && (
               <p>
-                <strong>Triệu chứng phổ biến nhất:</strong>{" "}
-                {stats.symptomStats[0]?.name} ({stats.symptomStats[0]?.value}{" "}
-                lần xuất hiện)
+                <strong>Triệu chứng thường gặp:</strong>{" "}
+                {stats.symptomStats[0]?.name} (xuất hiện {stats.symptomStats[0]?.value} lần)
               </p>
             )}
           </div>

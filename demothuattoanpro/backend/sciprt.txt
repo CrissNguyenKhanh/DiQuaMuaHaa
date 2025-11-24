@@ -1,0 +1,736 @@
+# ============================================
+# FILE 1: backend/data/database.py
+# Quản lý MySQL Database với XAMPP
+# ============================================
+
+import mysql.connector
+from mysql.connector import Error
+import hashlib
+import json
+from datetime import datetime
+
+class Database:
+    def __init__(self):
+        self.host = 'localhost'
+        self.port = 3306
+        self.user = 'root'
+        self.password = ''  # XAMPP mặc định không có password
+        self.database = 'medical_ai_db'
+        
+        # Tạo database nếu chưa có
+        self.create_database()
+        self.init_tables()
+    
+    def get_connection(self):
+        """Kết nối đến MySQL"""
+        try:
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database
+            )
+            return connection
+        except Error as e:
+            print(f"❌ Lỗi kết nối MySQL: {e}")
+            return None
+    
+    def create_database(self):
+        """Tạo database nếu chưa tồn tại"""
+        try:
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password
+            )
+            cursor = connection.cursor()
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {self.database} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+            print(f"✅ Database '{self.database}' đã sẵn sàng")
+            cursor.close()
+            connection.close()
+        except Error as e:
+            print(f"❌ Lỗi tạo database: {e}")
+    
+    def init_tables(self):
+        """Khởi tạo các bảng"""
+        connection = self.get_connection()
+        if not connection:
+            return
+        
+        cursor = connection.cursor()
+        
+        # Bảng users
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                full_name VARCHAR(100),
+                email VARCHAR(100),
+                role VARCHAR(20) DEFAULT 'user',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ''')
+        
+        # Bảng medical_records
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS medical_records (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                symptoms TEXT NOT NULL,
+                age INT,
+                gender VARCHAR(10),
+                diagnosis VARCHAR(100),
+                severity VARCHAR(20),
+                confidence DECIMAL(5,2),
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ''')
+        
+        # Bảng training_data
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS training_data (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                symptoms TEXT NOT NULL,
+                age INT,
+                gender VARCHAR(10),
+                diagnosis VARCHAR(100) NOT NULL,
+                severity VARCHAR(20),
+                is_verified BOOLEAN DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ''')
+        
+        connection.commit()
+        
+        # Tạo dữ liệu mặc định
+        self.create_default_admin()
+        self.create_sample_training_data()
+        
+        cursor.close()
+        connection.close()
+        print("✅ Các bảng đã được khởi tạo")
+    
+    def create_default_admin(self):
+        """Tạo admin mặc định"""
+        connection = self.get_connection()
+        if not connection:
+            return
+        
+        cursor = connection.cursor()
+        try:
+            hashed_pw = hashlib.sha256('admin123'.encode()).hexdigest()
+            cursor.execute('''
+                INSERT INTO users (username, password, full_name, email, role)
+                VALUES (%s, %s, %s, %s, %s)
+            ''', ('admin', hashed_pw, 'Administrator', 'admin@medical.ai', 'admin'))
+            connection.commit()
+            print("✅ Tạo admin thành công (username: admin, password: admin123)")
+        except Error:
+            pass  # Admin đã tồn tại
+        
+        cursor.close()
+        connection.close()
+    
+    def create_sample_training_data(self):
+        """Tạo 10 bộ dữ liệu training mẫu"""
+        connection = self.get_connection()
+        if not connection:
+            return
+        
+        cursor = connection.cursor()
+        
+        # Kiểm tra đã có dữ liệu chưa
+        cursor.execute('SELECT COUNT(*) FROM training_data')
+        count = cursor.fetchone()[0]
+        
+        if count > 0:
+            cursor.close()
+            connection.close()
+            return
+        
+        sample_data = [
+            {'symptoms': ['Sốt cao', 'Đau đầu', 'Mệt mỏi'], 'age': 25, 'gender': 'Nam', 'diagnosis': 'Cảm cúm', 'severity': 'Nhẹ'},
+            {'symptoms': ['Ho khan', 'Khó thở', 'Đau ngực'], 'age': 45, 'gender': 'Nữ', 'diagnosis': 'Viêm phổi', 'severity': 'Nặng'},
+            {'symptoms': ['Đau bụng', 'Buồn nôn', 'Tiêu chảy'], 'age': 30, 'gender': 'Nam', 'diagnosis': 'Viêm dạ dày', 'severity': 'Trung bình'},
+            {'symptoms': ['Chóng mặt', 'Đau đầu', 'Huyết áp cao'], 'age': 55, 'gender': 'Nam', 'diagnosis': 'Tăng huyết áp', 'severity': 'Nặng'},
+            {'symptoms': ['Đau họng', 'Sốt nhẹ', 'Ho có đờm'], 'age': 28, 'gender': 'Nữ', 'diagnosis': 'Viêm họng', 'severity': 'Nhẹ'},
+            {'symptoms': ['Đau khớp', 'Sưng khớp', 'Khó cử động'], 'age': 60, 'gender': 'Nữ', 'diagnosis': 'Viêm khớp', 'severity': 'Trung bình'},
+            {'symptoms': ['Đau ngực', 'Khó thở', 'Đánh trống ngực'], 'age': 50, 'gender': 'Nam', 'diagnosis': 'Bệnh tim', 'severity': 'Nặng'},
+            {'symptoms': ['Mẩn ngứa', 'Đỏ da', 'Sưng'], 'age': 22, 'gender': 'Nữ', 'diagnosis': 'Dị ứng', 'severity': 'Nhẹ'},
+            {'symptoms': ['Đái nhiều', 'Khát nước', 'Mệt mỏi'], 'age': 48, 'gender': 'Nam', 'diagnosis': 'Tiểu đường', 'severity': 'Trung bình'},
+            {'symptoms': ['Đau lưng', 'Tê chân', 'Khó đi lại'], 'age': 42, 'gender': 'Nữ', 'diagnosis': 'Thoát vị đĩa đệm', 'severity': 'Trung bình'}
+        ]
+        
+        for data in sample_data:
+            cursor.execute('''
+                INSERT INTO training_data (symptoms, age, gender, diagnosis, severity, is_verified)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            ''', (json.dumps(data['symptoms'], ensure_ascii=False), data['age'], 
+                  data['gender'], data['diagnosis'], data['severity'], 1))
+        
+        connection.commit()
+        cursor.close()
+        connection.close()
+        print("✅ Đã tạo 10 bộ dữ liệu training mẫu")
+    
+    # ========== USER MANAGEMENT ==========
+    def authenticate_user(self, username, password):
+        """Xác thực user"""
+        connection = self.get_connection()
+        if not connection:
+            return {'success': False, 'error': 'Không thể kết nối database'}
+        
+        cursor = connection.cursor()
+        hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+        
+        cursor.execute('''
+            SELECT id, username, full_name, email, role 
+            FROM users WHERE username = %s AND password = %s
+        ''', (username, hashed_pw))
+        
+        user = cursor.fetchone()
+        cursor.close()
+        connection.close()
+        
+        if user:
+            return {
+                'success': True,
+                'user': {
+                    'id': user[0],
+                    'username': user[1],
+                    'full_name': user[2],
+                    'email': user[3],
+                    'role': user[4]
+                }
+            }
+        return {'success': False, 'error': 'Sai tên đăng nhập hoặc mật khẩu'}
+    
+    def create_user(self, username, password, full_name, email, role='user'):
+        """Tạo user mới"""
+        connection = self.get_connection()
+        if not connection:
+            return {'success': False, 'error': 'Không thể kết nối database'}
+        
+        cursor = connection.cursor()
+        try:
+            hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+            cursor.execute('''
+                INSERT INTO users (username, password, full_name, email, role)
+                VALUES (%s, %s, %s, %s, %s)
+            ''', (username, hashed_pw, full_name, email, role))
+            connection.commit()
+            user_id = cursor.lastrowid
+            cursor.close()
+            connection.close()
+            return {'success': True, 'user_id': user_id}
+        except Error as e:
+            cursor.close()
+            connection.close()
+            return {'success': False, 'error': 'Username đã tồn tại'}
+    
+    # ========== MEDICAL RECORDS ==========
+    def add_medical_record(self, user_id, symptoms, age, gender, diagnosis, severity, confidence, notes=''):
+        """Thêm lịch sử khám bệnh"""
+        connection = self.get_connection()
+        if not connection:
+            return None
+        
+        cursor = connection.cursor()
+        cursor.execute('''
+            INSERT INTO medical_records 
+            (user_id, symptoms, age, gender, diagnosis, severity, confidence, notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (user_id, json.dumps(symptoms, ensure_ascii=False), age, gender, 
+              diagnosis, severity, confidence, notes))
+        connection.commit()
+        record_id = cursor.lastrowid
+        cursor.close()
+        connection.close()
+        return record_id
+    
+    def get_user_medical_records(self, user_id):
+        """Lấy lịch sử khám bệnh của user"""
+        connection = self.get_connection()
+        if not connection:
+            return []
+        
+        cursor = connection.cursor()
+        cursor.execute('''
+            SELECT id, symptoms, age, gender, diagnosis, severity, 
+                   confidence, notes, created_at
+            FROM medical_records WHERE user_id = %s ORDER BY created_at DESC
+        ''', (user_id,))
+        
+        records = []
+        for row in cursor.fetchall():
+            records.append({
+                'id': row[0],
+                'symptoms': json.loads(row[1]),
+                'age': row[2],
+                'gender': row[3],
+                'diagnosis': row[4],
+                'severity': row[5],
+                'confidence': float(row[6]) if row[6] else 0,
+                'notes': row[7],
+                'created_at': str(row[8])
+            })
+        
+        cursor.close()
+        connection.close()
+        return records
+    
+    # ========== TRAINING DATA ==========
+    def get_all_training_data(self):
+        """Lấy tất cả dữ liệu training"""
+        connection = self.get_connection()
+        if not connection:
+            return []
+        
+        cursor = connection.cursor()
+        cursor.execute('''
+            SELECT symptoms, age, gender, diagnosis, severity
+            FROM training_data WHERE is_verified = 1
+        ''')
+        
+        data = []
+        for row in cursor.fetchall():
+            data.append({
+                'symptoms': json.loads(row[0]),
+                'age': row[1],
+                'gender': row[2],
+                'diagnosis': row[3],
+                'severity': row[4]
+            })
+        
+        cursor.close()
+        connection.close()
+        return data
+    
+    def add_training_data(self, symptoms, age, gender, diagnosis, severity):
+        """Thêm dữ liệu training"""
+        connection = self.get_connection()
+        if not connection:
+            return None
+        
+        cursor = connection.cursor()
+        cursor.execute('''
+            INSERT INTO training_data (symptoms, age, gender, diagnosis, severity)
+            VALUES (%s, %s, %s, %s, %s)
+        ''', (json.dumps(symptoms, ensure_ascii=False), age, gender, diagnosis, severity))
+        connection.commit()
+        data_id = cursor.lastrowid
+        cursor.close()
+        connection.close()
+        return data_id
+
+
+# ============================================
+# FILE 2: backend/auto_train_model.py
+# Train AI model và lưu vào file
+# ============================================
+
+import pickle
+import numpy as np
+from sklearn.naive_bayes import GaussianNB
+from sklearn.preprocessing import LabelEncoder
+import sys
+import os
+
+# Import database
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from data.database import Database
+
+class ModelTrainer:
+    def __init__(self):
+        self.db = Database()
+        self.model = GaussianNB()
+        self.label_encoder = LabelEncoder()
+        self.symptom_list = []
+        self.model_file = 'trained_model.pkl'
+        
+    def prepare_data(self):
+        """Chuẩn bị dữ liệu từ database"""
+        training_data = self.db.get_all_training_data()
+        
+        if len(training_data) < 2:
+            print("❌ Không đủ dữ liệu để train (cần ít nhất 2 mẫu)")
+            return None, None
+        
+        # Lấy danh sách tất cả triệu chứng
+        all_symptoms = set()
+        for data in training_data:
+            all_symptoms.update(data['symptoms'])
+        
+        self.symptom_list = sorted(list(all_symptoms))
+        print(f"📊 Tổng số triệu chứng: {len(self.symptom_list)}")
+        
+        # Tạo feature vectors
+        X = []
+        y = []
+        
+        for data in training_data:
+            # Vector triệu chứng (binary encoding)
+            feature_vector = [0] * len(self.symptom_list)
+            for symptom in data['symptoms']:
+                if symptom in self.symptom_list:
+                    idx = self.symptom_list.index(symptom)
+                    feature_vector[idx] = 1
+            
+            # Thêm tuổi và giới tính
+            feature_vector.append(data['age'])
+            feature_vector.append(1 if data['gender'] == 'Nam' else 0)
+            
+            X.append(feature_vector)
+            y.append(data['diagnosis'])
+        
+        return np.array(X), y
+    
+    def train(self):
+        """Train model và lưu vào file"""
+        print("🚀 Bắt đầu train model...")
+        
+        X, y = self.prepare_data()
+        if X is None:
+            return False
+        
+        # Encode labels
+        y_encoded = self.label_encoder.fit_transform(y)
+        
+        # Train model
+        self.model.fit(X, y_encoded)
+        
+        # Lưu model vào file
+        model_data = {
+            'model': self.model,
+            'label_encoder': self.label_encoder,
+            'symptom_list': self.symptom_list
+        }
+        
+        with open(self.model_file, 'wb') as f:
+            pickle.dump(model_data, f)
+        
+        print(f"✅ Train thành công!")
+        print(f"   - Số mẫu dữ liệu: {len(X)}")
+        print(f"   - Số triệu chứng: {len(self.symptom_list)}")
+        print(f"   - Số chẩn đoán: {len(self.label_encoder.classes_)}")
+        print(f"   - Model đã lưu: {self.model_file}")
+        print(f"   - Các chẩn đoán: {', '.join(self.label_encoder.classes_)}")
+        
+        return True
+
+# Chạy training khi file được execute
+if __name__ == '__main__':
+    print("=" * 60)
+    print("🏥 HỆ THỐNG TRAIN AI CHẨN ĐOÁN Y TẾ")
+    print("=" * 60)
+    
+    trainer = ModelTrainer()
+    success = trainer.train()
+    
+    if success:
+        print("\n✅ Hoàn tất! Model đã sẵn sàng sử dụng.")
+    else:
+        print("\n❌ Train thất bại!")
+    
+    print("=" * 60)
+
+
+# ============================================
+# FILE 3: backend/ai_analyzer.py
+# Load model từ file và phân tích dữ liệu
+# ============================================
+
+import pickle
+import numpy as np
+import os
+
+class AIAnalyzer:
+    def __init__(self):
+        self.model_file = 'trained_model.pkl'
+        self.model = None
+        self.label_encoder = None
+        self.symptom_list = []
+        self.is_loaded = False
+        
+        # Load model khi khởi tạo
+        self.load_model()
+    
+    def load_model(self):
+        """Load model từ file"""
+        if not os.path.exists(self.model_file):
+            print(f"⚠️  Chưa có file model: {self.model_file}")
+            print("   Vui lòng chạy auto_train_model.py trước!")
+            return False
+        
+        try:
+            with open(self.model_file, 'rb') as f:
+                model_data = pickle.load(f)
+            
+            self.model = model_data['model']
+            self.label_encoder = model_data['label_encoder']
+            self.symptom_list = model_data['symptom_list']
+            self.is_loaded = True
+            
+            print("✅ Load model thành công!")
+            print(f"   - Số triệu chứng: {len(self.symptom_list)}")
+            print(f"   - Số chẩn đoán: {len(self.label_encoder.classes_)}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Lỗi load model: {e}")
+            return False
+    
+    def predict(self, symptoms, age, gender):
+        """Dự đoán chẩn đoán từ triệu chứng"""
+        if not self.is_loaded:
+            return {
+                'success': False,
+                'error': 'Model chưa được load. Vui lòng chạy auto_train_model.py trước!'
+            }
+        
+        # Tạo feature vector
+        feature_vector = [0] * len(self.symptom_list)
+        for symptom in symptoms:
+            if symptom in self.symptom_list:
+                idx = self.symptom_list.index(symptom)
+                feature_vector[idx] = 1
+        
+        feature_vector.append(age)
+        feature_vector.append(1 if gender == 'Nam' else 0)
+        
+        # Predict
+        try:
+            prediction = self.model.predict([feature_vector])[0]
+            diagnosis = self.label_encoder.inverse_transform([prediction])[0]
+            
+            # Tính confidence
+            probabilities = self.model.predict_proba([feature_vector])[0]
+            confidence = max(probabilities) * 100
+            
+            # Dự đoán severity dựa trên số lượng triệu chứng
+            num_symptoms = len(symptoms)
+            if num_symptoms <= 2:
+                severity = 'Nhẹ'
+            elif num_symptoms <= 4:
+                severity = 'Trung bình'
+            else:
+                severity = 'Nặng'
+            
+            return {
+                'success': True,
+                'diagnosis': diagnosis,
+                'severity': severity,
+                'confidence': round(confidence, 2)
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'Lỗi dự đoán: {str(e)}'
+            }
+    
+    def get_available_symptoms(self):
+        """Lấy danh sách triệu chứng có thể sử dụng"""
+        return self.symptom_list
+    
+    def get_available_diagnoses(self):
+        """Lấy danh sách chẩn đoán"""
+        if self.is_loaded:
+            return list(self.label_encoder.classes_)
+        return []
+
+
+# ============================================
+# FILE 4: backend/app.py
+# Flask API Server
+# ============================================
+
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+from data.database import Database
+from ai_analyzer import AIAnalyzer
+import auto_train_model
+
+app = Flask(__name__)
+CORS(app)
+
+# Initialize
+db = Database()
+ai = AIAnalyzer()
+
+# Nếu chưa có model, train ngay
+if not ai.is_loaded:
+    print("\n⚠️  Model chưa tồn tại, đang train...")
+    trainer = auto_train_model.ModelTrainer()
+    if trainer.train():
+        ai.load_model()
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    return jsonify({
+        'status': 'ok',
+        'model_loaded': ai.is_loaded
+    }), 200
+
+# ========== AUTHENTICATION APIs ==========
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    try:
+        data = request.json
+        result = db.authenticate_user(data['username'], data['password'])
+        return jsonify(result), 200 if result['success'] else 401
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/auth/register', methods=['POST'])
+def register():
+    try:
+        data = request.json
+        result = db.create_user(
+            username=data['username'],
+            password=data['password'],
+            full_name=data.get('full_name', ''),
+            email=data.get('email', ''),
+            role=data.get('role', 'user')
+        )
+        return jsonify(result), 200 if result['success'] else 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ========== MEDICAL RECORD APIs ==========
+@app.route('/api/records/<int:user_id>', methods=['GET'])
+def get_records(user_id):
+    try:
+        records = db.get_user_medical_records(user_id)
+        return jsonify({'success': True, 'records': records}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/records', methods=['POST'])
+def add_record():
+    try:
+        data = request.json
+        
+        # Dự đoán chẩn đoán bằng AI
+        prediction = ai.predict(
+            symptoms=data['symptoms'],
+            age=data['age'],
+            gender=data['gender']
+        )
+        
+        if not prediction['success']:
+            return jsonify(prediction), 400
+        
+        # Lưu vào database
+        record_id = db.add_medical_record(
+            user_id=data['user_id'],
+            symptoms=data['symptoms'],
+            age=data['age'],
+            gender=data['gender'],
+            diagnosis=prediction['diagnosis'],
+            severity=prediction['severity'],
+            confidence=prediction['confidence'],
+            notes=data.get('notes', '')
+        )
+        
+        return jsonify({
+            'success': True,
+            'record_id': record_id,
+            'prediction': prediction
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ========== AI APIs ==========
+@app.route('/api/ai/predict', methods=['POST'])
+def predict():
+    try:
+        data = request.json
+        result = ai.predict(
+            symptoms=data['symptoms'],
+            age=data['age'],
+            gender=data['gender']
+        )
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ai/symptoms', methods=['GET'])
+def get_symptoms():
+    try:
+        symptoms = ai.get_available_symptoms()
+        return jsonify({'success': True, 'symptoms': symptoms}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ai/diagnoses', methods=['GET'])
+def get_diagnoses():
+    try:
+        diagnoses = ai.get_available_diagnoses()
+        return jsonify({'success': True, 'diagnoses': diagnoses}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ai/retrain', methods=['POST'])
+def retrain():
+    try:
+        trainer = auto_train_model.ModelTrainer()
+        success = trainer.train()
+        
+        if success:
+            ai.load_model()
+            return jsonify({
+                'success': True,
+                'message': 'Retrain model thành công!'
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Không đủ dữ liệu để train'
+            }), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ========== TRAINING DATA APIs ==========
+@app.route('/api/training-data', methods=['POST'])
+def add_training_data():
+    try:
+        data = request.json
+        data_id = db.add_training_data(
+            symptoms=data['symptoms'],
+            age=data['age'],
+            gender=data['gender'],
+            diagnosis=data['diagnosis'],
+            severity=data['severity']
+        )
+        
+        return jsonify({
+            'success': True,
+            'data_id': data_id,
+            'message': 'Đã thêm dữ liệu. Hãy chạy /api/ai/retrain để train lại model!'
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/training-data', methods=['GET'])
+def get_training_data():
+    try:
+        data = db.get_all_training_data()
+        return jsonify({'success': True, 'data': data, 'count': len(data)}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+if __name__ == '__main__':
+    print("\n" + "="*60)
+    print("🏥 MEDICAL AI API SERVER")
+    print("="*60)
+    print("📍 Server: http://localhost:5000")
+    print("📊 Database: MySQL (XAMPP) - Port 3306")
+    print("🤖 AI Model: Naive Bayes")
+    print("="*60 + "\n")
+    
+    app.run(debug=True, port=5000
