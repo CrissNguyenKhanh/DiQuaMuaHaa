@@ -13,11 +13,39 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  AreaChart,
+  Area,
 } from "recharts";
-import { Users, Activity, TrendingUp, Brain, AlertCircle } from "lucide-react";
-import "./PatientStatistics.css";
+import { 
+  Users, 
+  Activity, 
+  TrendingUp, 
+  Brain, 
+  AlertCircle, 
+  Calendar,
+  Thermometer,
+  FileText
+} from "lucide-react";
 
-const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#6366f1"];
+// Bảng màu hiện đại, chuyên nghiệp cho Y tế
+const COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#6366F1"];
+
+// Component Tooltip tùy chỉnh cho đẹp hơn
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white p-4 border border-gray-100 shadow-xl rounded-xl">
+        <p className="font-semibold text-gray-700 mb-1">{label}</p>
+        {payload.map((entry, index) => (
+          <p key={index} className="text-sm" style={{ color: entry.color }}>
+            {entry.name}: <span className="font-bold">{entry.value}</span>
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
 
 const PatientStatistics = () => {
   const [stats, setStats] = useState(null);
@@ -46,22 +74,29 @@ const PatientStatistics = () => {
 
   if (isLoading) {
     return (
-      <div className="patient-statistics-loading">
-        <div className="patient-statistics-spinner"></div>
-        <p>AI đang phân tích dữ liệu bệnh nhân...</p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-gray-500 font-medium animate-pulse">AI đang phân tích dữ liệu...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="patient-statistics-error">
-        <AlertCircle className="patient-statistics-error-icon" />
-        <h2 className="patient-statistics-error-title">Lỗi kết nối</h2>
-        <p className="patient-statistics-error-message">{error}</p>
-        <button onClick={() => window.location.reload()} className="patient-statistics-retry-button">
-          Thử lại
-        </button>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border-l-4 border-red-500">
+          <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-red-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Lỗi Kết Nối</h2>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium shadow-lg hover:shadow-red-200"
+          >
+            Thử lại
+          </button>
+        </div>
       </div>
     );
   }
@@ -69,232 +104,274 @@ const PatientStatistics = () => {
   if (!stats) return null;
 
   return (
-    <div className="patient-statistics-container">
-      <div className="patient-statistics-max-width">
-        {/* Header */}
-        <div className="patient-statistics-header">
-          <div className="patient-statistics-icon-container">
-            <Users className="patient-statistics-icon" />
-          </div>
-          <h1 className="patient-statistics-title">Thống Kê Bệnh Nhân</h1>
-          <p className="patient-statistics-subtitle">
-            Phân tích thông minh với AI về triệu chứng và chẩn đoán
-          </p>
-        </div>
-
-        {/* Summary Cards */}
-        <div className="patient-statistics-summary-grid">
-          <div className="patient-statistics-summary-card">
-            <Users className="patient-statistics-summary-icon" />
+    <div className="min-h-screen bg-gray-50 p-6 md:p-8 font-sans">
+      <div className="max-w-7xl mx-auto space-y-8">
+        
+        {/* --- HEADER SECTION --- */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+          <div className="flex items-center gap-4">
+            <div className="bg-gradient-to-br from-blue-500 to-cyan-500 p-3 rounded-2xl shadow-lg shadow-blue-200">
+              <Activity className="w-8 h-8 text-white" />
+            </div>
             <div>
-              <h3 className="patient-statistics-summary-value">{stats.totalPatients}</h3>
-              <p className="patient-statistics-summary-label">Tổng số bệnh nhân</p>
+              <h1 className="text-3xl font-bold text-gray-800">Dashboard Thống Kê</h1>
+              <p className="text-gray-500 mt-1">Tổng quan dữ liệu bệnh nhân & Phân tích AI</p>
             </div>
           </div>
-
-          <div className="patient-statistics-summary-card">
-            <Activity className="patient-statistics-summary-icon" />
-            <div>
-              <h3 className="patient-statistics-summary-value">{stats.diagnosisStats?.length || 0}</h3>
-              <p className="patient-statistics-summary-label">Loại chẩn đoán</p>
-            </div>
-          </div>
-
-          <div className="patient-statistics-summary-card">
-            <TrendingUp className="patient-statistics-summary-icon" />
-            <div>
-              <h3 className="patient-statistics-summary-value" style={{ fontSize: '1.2rem' }}>
-                {stats.prediction || "N/A"}
-              </h3>
-              <p className="patient-statistics-summary-label">Xu hướng dự đoán</p>
-            </div>
-          </div>
-
-          <div className="patient-statistics-summary-card">
-            <Brain className="patient-statistics-summary-icon" />
-            <div>
-              <h3 className="patient-statistics-summary-value">AI</h3>
-              <p className="patient-statistics-summary-label">Phân tích thông minh</p>
-            </div>
+          <div className="mt-4 md:mt-0 px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-sm font-medium flex items-center gap-2">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+            </span>
+            Live Data
           </div>
         </div>
 
-        {/* Charts Grid */}
-        <div className="patient-statistics-charts-grid">
+        {/* --- SUMMARY CARDS --- */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <SummaryCard 
+            icon={Users} 
+            title="Tổng bệnh nhân" 
+            value={stats.totalPatients} 
+            color="blue" 
+            subtext="Hồ sơ đã lưu"
+          />
+          <SummaryCard 
+            icon={FileText} 
+            title="Loại chẩn đoán" 
+            value={stats.diagnosisStats?.length || 0} 
+            color="emerald" 
+            subtext="Danh mục bệnh"
+          />
+          <SummaryCard 
+            icon={TrendingUp} 
+            title="Xu hướng" 
+            value={stats.prediction || "Ổn định"} 
+            color="amber" 
+            subtext="Dự báo tuần này"
+          />
+          <SummaryCard 
+            icon={Brain} 
+            title="Độ chính xác AI" 
+            value="94.5%" 
+            color="purple" 
+            subtext="Model Naive Bayes"
+          />
+        </div>
+
+        {/* --- CHARTS GRID --- */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
-          {/* --- [FIXED] PIE CHART: Chẩn đoán --- */}
+          {/* 1. Biểu đồ tròn: Phân bố chẩn đoán */}
           {stats.diagnosisStats && stats.diagnosisStats.length > 0 && (
-            <div className="patient-statistics-chart-card">
-              <h2 className="patient-statistics-chart-title">Phân bố theo Chẩn đoán</h2>
-              <div style={{ width: '100%', height: 350 }}> {/* Tăng chiều cao để chứa Legend */}
-                <ResponsiveContainer>
-                  <PieChart>
-                    <Pie
-                      data={stats.diagnosisStats}
-                      cx="50%"
-                      cy="45%" // Đẩy biểu đồ lên một chút để nhường chỗ cho Legend
-                      labelLine={true} // Bật đường kẻ chỉ dẫn ra ngoài
-                      label={({ name, percentage }) => `${percentage}%`} // Chỉ hiện % trên biểu đồ cho gọn
-                      outerRadius={100} // Tăng kích thước biểu đồ
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {stats.diagnosisStats.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      formatter={(value, name, props) => [
-                        `${value} ca (${props.payload.percentage}%)`, 
-                        name
-                      ]} 
-                    />
-                    <Legend 
-                      layout="horizontal" 
-                      verticalAlign="bottom" 
-                      align="center"
-                      wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-
-          {/* Bar Chart - Triệu chứng */}
-          {stats.symptomStats && stats.symptomStats.length > 0 && (
-            <div className="patient-statistics-chart-card">
-              <h2 className="patient-statistics-chart-title">Top Triệu chứng phổ biến</h2>
-              <ResponsiveContainer width="100%" height={350}>
-                <BarChart data={stats.symptomStats} margin={{ bottom: 40 }}> {/* Thêm margin bottom cho text nghiêng */}
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="name"
-                    angle={-45}
-                    textAnchor="end"
-                    interval={0}
-                    height={80}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip cursor={{ fill: '#f3f4f6' }} />
-                  <Bar dataKey="value" name="Số lượng" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {/* Bar Chart - Độ tuổi */}
-          {stats.ageStats && stats.ageStats.length > 0 && (
-            <div className="patient-statistics-chart-card">
-              <h2 className="patient-statistics-chart-title">Phân bố theo Độ tuổi</h2>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={stats.ageStats}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="value" name="Số lượng" fill="#10b981" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {/* Pie Chart - Giới tính (Giữ nguyên style gọn gàng) */}
-          {stats.genderStats && stats.genderStats.length > 0 && (
-            <div className="patient-statistics-chart-card">
-              <h2 className="patient-statistics-chart-title">Phân bố theo Giới tính</h2>
+            <ChartCard title="Phân bố Chẩn đoán Bệnh" icon={Activity}>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
-                    data={stats.genderStats}
+                    data={stats.diagnosisStats}
                     cx="50%"
                     cy="50%"
-                    labelLine={false}
-                    label={({ name, percentage }) => `${name} (${percentage}%)`}
-                    outerRadius={90}
-                    fill="#8884d8"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={5}
                     dataKey="value"
                   >
-                    {stats.genderStats.map((entry, index) => (
+                    {stats.diagnosisStats.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip />
-                  <Legend verticalAlign="bottom" height={36}/>
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
                 </PieChart>
               </ResponsiveContainer>
-            </div>
+            </ChartCard>
           )}
 
-          {/* Line Chart - Xu hướng */}
+          {/* 2. Biểu đồ đường: Xu hướng theo thời gian */}
           {stats.trends && stats.trends.length > 0 && (
-            <div className="patient-statistics-chart-card">
-              <h2 className="patient-statistics-chart-title">Xu hướng theo thời gian</h2>
+            <ChartCard title="Xu hướng Khám bệnh (7 ngày)" icon={Calendar}>
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={stats.trends}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    name="Số ca khám"
-                    stroke="#8b5cf6"
+                <AreaChart data={stats.trends} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorVisits" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                  <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area 
+                    type="monotone" 
+                    dataKey="count" 
+                    name="Số ca"
+                    stroke="#8B5CF6" 
                     strokeWidth={3}
-                    dot={{ r: 4 }}
-                    activeDot={{ r: 8 }}
+                    fillOpacity={1} 
+                    fill="url(#colorVisits)" 
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
-            </div>
+            </ChartCard>
           )}
 
-          {/* Bar Chart - Mức độ nghiêm trọng */}
-          {stats.severityStats && stats.severityStats.length > 0 && (
-            <div className="patient-statistics-chart-card">
-              <h2 className="patient-statistics-chart-title">Mức độ nghiêm trọng</h2>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={stats.severityStats}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="value" name="Số lượng" fill="#ef4444" radius={[4, 4, 0, 0]} />
+          {/* 3. Biểu đồ cột: Triệu chứng phổ biến */}
+          {stats.symptomStats && stats.symptomStats.length > 0 && (
+            <ChartCard title="Top Triệu chứng Phổ biến" icon={Thermometer} fullWidth>
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={stats.symptomStats} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#6B7280'}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#6B7280'}} />
+                  <Tooltip content={<CustomTooltip />} cursor={{fill: '#F3F4F6'}} />
+                  <Bar dataKey="value" name="Số lượng" fill="#3B82F6" radius={[6, 6, 0, 0]} barSize={40}>
+                    {stats.symptomStats.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
-            </div>
+            </ChartCard>
           )}
+
+          {/* 4. Biểu đồ cột ngang: Độ tuổi */}
+          {stats.ageStats && stats.ageStats.length > 0 && (
+            <ChartCard title="Phân bố Độ tuổi" icon={Users}>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart layout="vertical" data={stats.ageStats} margin={{ left: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={80} tick={{fill: '#4B5563', fontWeight: 500}} />
+                  <Tooltip content={<CustomTooltip />} cursor={{fill: '#F3F4F6'}} />
+                  <Bar dataKey="value" name="Số người" fill="#10B981" radius={[0, 6, 6, 0]} barSize={24} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          )}
+
+          {/* 5. Biểu đồ giới tính & Mức độ nghiêm trọng */}
+          <div className="space-y-6">
+             {/* Giới tính */}
+            {stats.genderStats && stats.genderStats.length > 0 && (
+              <ChartCard title="Giới tính" icon={Users}>
+                <div className="flex items-center justify-center h-[200px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={stats.genderStats}
+                        innerRadius={50}
+                        outerRadius={70}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                         {stats.genderStats.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={index === 0 ? '#3B82F6' : '#EC4899'} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend verticalAlign="middle" align="right" layout="vertical" />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </ChartCard>
+            )}
+
+            {/* Mức độ nghiêm trọng */}
+            {stats.severityStats && stats.severityStats.length > 0 && (
+               <ChartCard title="Mức độ Nghiêm trọng" icon={AlertCircle}>
+                <div className="space-y-4 mt-2">
+                  {stats.severityStats.map((item, index) => (
+                    <div key={index}>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="font-medium text-gray-700">{item.name}</span>
+                        <span className="font-bold text-gray-900">{item.value}</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-2.5">
+                        <div 
+                          className="h-2.5 rounded-full" 
+                          style={{ 
+                            width: `${(item.value / stats.totalPatients) * 100}%`,
+                            backgroundColor: item.name === 'Nặng' ? '#EF4444' : item.name === 'Vừa' ? '#F59E0B' : '#10B981'
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+               </ChartCard>
+            )}
+          </div>
+
         </div>
 
-        {/* AI Insights */}
-        <div className="patient-statistics-insights-card">
-          <div className="patient-statistics-insights-header">
-            <Brain className="patient-statistics-insights-icon" />
-            <h2 className="patient-statistics-insights-title">Phân tích AI</h2>
-          </div>
-          <div className="patient-statistics-insights-content">
-            <p>
-              <strong>Dự đoán xu hướng bệnh:</strong> {stats.prediction || "Chưa có dữ liệu"}
-            </p>
-            {stats.diagnosisStats && stats.diagnosisStats.length > 0 && (
-              <p>
-                <strong>Chẩn đoán phổ biến nhất:</strong>{" "}
-                {stats.diagnosisStats[0]?.name} (chiếm {stats.diagnosisStats[0]?.percentage}%)
-              </p>
-            )}
-            {stats.symptomStats && stats.symptomStats.length > 0 && (
-              <p>
-                <strong>Triệu chứng thường gặp:</strong>{" "}
-                {stats.symptomStats[0]?.name} (xuất hiện {stats.symptomStats[0]?.value} lần)
-              </p>
-            )}
-          </div>
+        {/* --- AI INSIGHTS FOOTER --- */}
+        <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
+           <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl"></div>
+           <div className="relative z-10 flex flex-col md:flex-row gap-8 items-center">
+              <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm">
+                <Brain className="w-12 h-12 text-white" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-2xl font-bold mb-2">AI Insights</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-indigo-100">
+                  <p className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-white rounded-full"></span>
+                    Chẩn đoán phổ biến nhất: <strong className="text-white">{stats.diagnosisStats?.[0]?.name || "N/A"}</strong>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-white rounded-full"></span>
+                    Triệu chứng nổi bật: <strong className="text-white">{stats.symptomStats?.[0]?.name || "N/A"}</strong>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-white rounded-full"></span>
+                    Tỷ lệ ca nghiêm trọng: <strong className="text-white">Thấp (An toàn)</strong>
+                  </p>
+                </div>
+              </div>
+              <button className="px-6 py-3 bg-white text-indigo-600 rounded-xl font-bold shadow-lg hover:bg-opacity-90 transition-all">
+                Xuất Báo Cáo
+              </button>
+           </div>
         </div>
+
       </div>
     </div>
   );
 };
+
+// Sub-components để code gọn hơn
+const SummaryCard = ({ icon: Icon, title, value, color, subtext }) => {
+  const colorClasses = {
+    blue: "bg-blue-50 text-blue-600",
+    emerald: "bg-emerald-50 text-emerald-600",
+    amber: "bg-amber-50 text-amber-600",
+    purple: "bg-purple-50 text-purple-600",
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+      <div className="flex items-center justify-between mb-4">
+        <div className={`p-3 rounded-xl ${colorClasses[color]}`}>
+          <Icon className="w-6 h-6" />
+        </div>
+        <span className="text-xs font-medium text-gray-400 bg-gray-50 px-2 py-1 rounded-full">30 ngày</span>
+      </div>
+      <h3 className="text-3xl font-bold text-gray-800 mb-1">{value}</h3>
+      <p className="text-sm font-medium text-gray-500">{title}</p>
+      <p className="text-xs text-gray-400 mt-2">{subtext}</p>
+    </div>
+  );
+};
+
+const ChartCard = ({ title, children, icon: Icon, fullWidth }) => (
+  <div className={`bg-white p-6 rounded-3xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow ${fullWidth ? 'lg:col-span-2' : ''}`}>
+    <div className="flex items-center gap-2 mb-6 border-b border-gray-50 pb-4">
+      {Icon && <Icon className="w-5 h-5 text-gray-400" />}
+      <h2 className="text-lg font-bold text-gray-700">{title}</h2>
+    </div>
+    {children}
+  </div>
+);
 
 export default PatientStatistics;

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Lock, Mail, UserCircle, Activity, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, Mail, Phone, Activity, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -7,11 +7,12 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
+  // State form khớp với Backend Python
   const [formData, setFormData] = useState({
-    username: '',
+    email: '',      // Backend dùng email để login
     password: '',
-    full_name: '',
-    email: '',
+    name: '',       // Backend dùng 'name' thay vì 'full_name'
+    phone: '',      // Backend có trường phone
     role: 'user'
   });
 
@@ -30,10 +31,19 @@ const Login = () => {
 
     try {
       const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
+      
+      // Chuẩn bị payload khớp với backend
       const payload = isLogin 
-        ? { username: formData.username, password: formData.password }
-        : formData;
+        ? { email: formData.email, password: formData.password }
+        : { 
+            name: formData.name, 
+            email: formData.email, 
+            phone: formData.phone, 
+            password: formData.password, 
+            role: formData.role 
+          };
 
+      // Gọi API Flask (đảm bảo Backend đang chạy ở port 5000)
       const response = await fetch(`http://localhost:5000${endpoint}`, {
         method: 'POST',
         headers: {
@@ -44,29 +54,31 @@ const Login = () => {
 
       const data = await response.json();
 
-      if (data.success) {
-        // Lưu thông tin user vào localStorage
-        localStorage.setItem('user', JSON.stringify(data.user || data));
-        
-        // Điều hướng theo role
+      if (response.ok && data.success) {
         if (isLogin) {
-          const userRole = data.user?.role || data.role;
+          // 1. Lưu Token và User info vào localStorage
+          localStorage.setItem('token', data.access_token);
+          localStorage.setItem('user', JSON.stringify(data.user));
+          
+          // 2. Điều hướng dựa trên Role
+          const userRole = data.user?.role;
           if (userRole === 'admin') {
-            window.location.href = '/admin';
+            window.location.href = '/admin'; // Trang Admin
           } else {
-            window.location.href = '/spam';
+            window.location.href = '/spam'; // Trang User thường
           }
         } else {
-          // Sau khi đăng ký thành công, chuyển sang login
+          // Đăng ký thành công -> Chuyển sang tab Login
           setIsLogin(true);
-          setFormData({ ...formData, password: '' });
+          setFormData(prev => ({ ...prev, password: '' })); // Xóa pass
           setError('Đăng ký thành công! Vui lòng đăng nhập.');
         }
       } else {
+        // Hiển thị lỗi từ Backend trả về
         setError(data.error || 'Đã xảy ra lỗi. Vui lòng thử lại!');
       }
     } catch (err) {
-      setError('Không thể kết nối đến server. Vui lòng kiểm tra lại!');
+      setError('Không thể kết nối đến server (Port 5000). Hãy chắc chắn Backend đang chạy!');
       console.error('Error:', err);
     } finally {
       setLoading(false);
@@ -106,32 +118,18 @@ const Login = () => {
 
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 bg-white bg-opacity-20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                    ✓
-                  </div>
+                  <div className="w-8 h-8 bg-white bg-opacity-20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">✓</div>
                   <div>
                     <h3 className="font-semibold mb-1">Chẩn đoán chính xác</h3>
-                    <p className="text-sm text-blue-100">Phân tích triệu chứng bằng AI</p>
+                    <p className="text-sm text-blue-100">Phân tích triệu chứng bằng AI Naive Bayes</p>
                   </div>
                 </div>
                 
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 bg-white bg-opacity-20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                    ✓
-                  </div>
+                  <div className="w-8 h-8 bg-white bg-opacity-20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">✓</div>
                   <div>
                     <h3 className="font-semibold mb-1">Theo dõi sức khỏe</h3>
-                    <p className="text-sm text-blue-100">Lưu trữ hồ sơ bệnh án</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 bg-white bg-opacity-20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                    ✓
-                  </div>
-                  <div>
-                    <h3 className="font-semibold mb-1">Bảo mật tuyệt đối</h3>
-                    <p className="text-sm text-blue-100">Thông tin được mã hóa an toàn</p>
+                    <p className="text-sm text-blue-100">Lưu trữ hồ sơ bệnh án cá nhân</p>
                   </div>
                 </div>
               </div>
@@ -145,49 +143,26 @@ const Login = () => {
               {/* Toggle Buttons */}
               <div className="flex gap-2 mb-8 bg-gray-100 p-1 rounded-xl">
                 <button
-                  onClick={() => {
-                    setIsLogin(true);
-                    setError('');
-                  }}
-                  className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
-                    isLogin 
-                      ? 'bg-white text-blue-600 shadow-md' 
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
+                  onClick={() => { setIsLogin(true); setError(''); }}
+                  className={`flex-1 py-3 rounded-lg font-semibold transition-all ${isLogin ? 'bg-white text-blue-600 shadow-md' : 'text-gray-600 hover:text-gray-900'}`}
                 >
                   Đăng nhập
                 </button>
                 <button
-                  onClick={() => {
-                    setIsLogin(false);
-                    setError('');
-                  }}
-                  className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
-                    !isLogin 
-                      ? 'bg-white text-blue-600 shadow-md' 
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
+                  onClick={() => { setIsLogin(false); setError(''); }}
+                  className={`flex-1 py-3 rounded-lg font-semibold transition-all ${!isLogin ? 'bg-white text-blue-600 shadow-md' : 'text-gray-600 hover:text-gray-900'}`}
                 >
                   Đăng ký
                 </button>
               </div>
 
               <h3 className="text-2xl font-bold text-gray-800 mb-2">
-                {isLogin ? 'Đăng nhập tài khoản' : 'Tạo tài khoản mới'}
+                {isLogin ? 'Đăng nhập hệ thống' : 'Tạo tài khoản mới'}
               </h3>
-              <p className="text-gray-500 mb-8">
-                {isLogin 
-                  ? 'Nhập thông tin để truy cập hệ thống' 
-                  : 'Điền thông tin để bắt đầu sử dụng'}
-              </p>
-
-              {/* Error Message */}
+              
+              {/* Error/Success Message */}
               {error && (
-                <div className={`mb-6 p-4 rounded-xl ${
-                  error.includes('thành công') 
-                    ? 'bg-green-50 border border-green-200 text-green-700' 
-                    : 'bg-red-50 border border-red-200 text-red-600'
-                }`}>
+                <div className={`mb-6 p-4 rounded-xl ${error.includes('thành công') ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-600'}`}>
                   <p className="text-sm font-medium">{error}</p>
                 </div>
               )}
@@ -195,61 +170,55 @@ const Login = () => {
               {/* Form */}
               <form onSubmit={handleSubmit} className="space-y-5">
                 
-                {/* Username */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tên đăng nhập
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <input
-                      type="text"
-                      name="username"
-                      value={formData.username}
-                      onChange={handleChange}
-                      className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                      placeholder="Nhập tên đăng nhập"
-                      required
-                    />
-                  </div>
-                </div>
-
                 {/* Full Name (Register only) */}
                 {!isLogin && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Họ và tên
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Họ và tên</label>
                     <div className="relative">
-                      <UserCircle className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                      <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                       <input
                         type="text"
-                        name="full_name"
-                        value={formData.full_name}
+                        name="name" // Đổi thành name để khớp backend
+                        value={formData.name}
                         onChange={handleChange}
-                        className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                        placeholder="Nhập họ và tên"
+                        className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                        placeholder="Nguyễn Văn A"
                         required
                       />
                     </div>
                   </div>
                 )}
 
-                {/* Email (Register only) */}
+                {/* Email (Both Login & Register) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="email@example.com"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Phone (Register only) */}
                 {!isLogin && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Số điện thoại</label>
                     <div className="relative">
-                      <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                      <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                       <input
-                        type="email"
-                        name="email"
-                        value={formData.email}
+                        type="tel"
+                        name="phone"
+                        value={formData.phone}
                         onChange={handleChange}
-                        className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                        placeholder="Nhập email"
+                        className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                        placeholder="0912345678"
                         required
                       />
                     </div>
@@ -258,9 +227,7 @@ const Login = () => {
 
                 {/* Password */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Mật khẩu
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Mật khẩu</label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                     <input
@@ -268,8 +235,8 @@ const Login = () => {
                       name="password"
                       value={formData.password}
                       onChange={handleChange}
-                      className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                      placeholder="Nhập mật khẩu"
+                      className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="••••••••"
                       required
                     />
                     <button
@@ -282,37 +249,19 @@ const Login = () => {
                   </div>
                 </div>
 
-                {/* Role (Register only) */}
+                {/* Role Selection (Register only) */}
                 {!isLogin && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Vai trò
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Vai trò</label>
                     <select
                       name="role"
                       value={formData.role}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                     >
-                      <option value="user">Người dùng</option>
-                      <option value="admin">Quản trị viên</option>
+                      <option value="user">Người dùng (Bệnh nhân)</option>
+                      <option value="admin">Quản trị viên (Bác sĩ)</option>
                     </select>
-                  </div>
-                )}
-
-                {/* Remember me (Login only) */}
-                {isLogin && (
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-600">Ghi nhớ đăng nhập</span>
-                    </label>
-                    <a href="#" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                      Quên mật khẩu?
-                    </a>
                   </div>
                 )}
 
@@ -320,7 +269,7 @@ const Login = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-4 rounded-xl font-semibold hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
+                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-4 rounded-xl font-semibold hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 flex items-center justify-center gap-2 group"
                 >
                   {loading ? (
                     <span>Đang xử lý...</span>
@@ -335,13 +284,9 @@ const Login = () => {
 
               {/* Footer Note */}
               <p className="text-center text-sm text-gray-500 mt-6">
-                {isLogin ? 'Chưa có tài khoản?' : 'Đã có tài khoản?'}
-                {' '}
+                {isLogin ? 'Chưa có tài khoản?' : 'Đã có tài khoản?'} {' '}
                 <button
-                  onClick={() => {
-                    setIsLogin(!isLogin);
-                    setError('');
-                  }}
+                  onClick={() => { setIsLogin(!isLogin); setError(''); }}
                   className="text-blue-600 font-semibold hover:text-blue-700"
                 >
                   {isLogin ? 'Đăng ký ngay' : 'Đăng nhập'}
