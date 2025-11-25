@@ -1,25 +1,21 @@
 import React, { useState, useEffect } from "react";
-import {
-  Activity,
-  AlertCircle,
-  CheckCircle,
-  TrendingUp,
-  Users,
-  Calendar,
-} from "lucide-react";
+import { Activity, AlertCircle, CheckCircle, TrendingUp, Users, Calendar, Save } from "lucide-react";
 
 const MedicalDiagnosisAI = () => {
   const [formData, setFormData] = useState({
     symptoms: "",
     age: "",
     gender: "Nam",
+    userId: 1, // Tạm thời hardcode, sau này lấy từ login
+    notes: ""
   });
   const [result, setResult] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [availableSymptoms, setAvailableSymptoms] = useState([]);
   const [statistics, setStatistics] = useState(null);
 
-  // Load statistics on mount
   useEffect(() => {
     fetchStatistics();
     fetchSymptoms();
@@ -60,6 +56,7 @@ const MedicalDiagnosisAI = () => {
 
     setIsAnalyzing(true);
     setResult(null);
+    setSaveSuccess(false);
 
     try {
       const symptomsArray = formData.symptoms
@@ -67,29 +64,32 @@ const MedicalDiagnosisAI = () => {
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
 
-      // Gọi API để tạo record và predict cùng lúc
+      // Gọi API /api/records để vừa predict vừa lưu luôn
       const response = await fetch("http://localhost:5000/api/records", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          user_id: 1, // ID người dùng mặc định
+          user_id: formData.userId,
           symptoms: symptomsArray,
           age: parseInt(formData.age),
           gender: formData.gender,
-          notes: "", // Có thể thêm ghi chú nếu cần
+          notes: formData.notes || ""
         }),
       });
 
       const data = await response.json();
 
-      if (data.success && data.prediction) {
-        // Lưu record_id để có thể sử dụng sau này
-        setResult({
-          ...data.prediction,
-          record_id: data.record_id,
-        });
+      if (data.success) {
+        setResult(data.prediction);
+        setSaveSuccess(true);
+        
+        // Refresh statistics sau khi thêm record mới
+        setTimeout(() => {
+          fetchStatistics();
+        }, 500);
+        
       } else {
         setResult({
           success: false,
@@ -108,21 +108,9 @@ const MedicalDiagnosisAI = () => {
 
   const getSeverityColor = (severity) => {
     const colors = {
-      Nhẹ: {
-        bg: "#dcfce7",
-        text: "#15803d",
-        gradient: "linear-gradient(to right, #22c55e, #10b981)",
-      },
-      "Trung bình": {
-        bg: "#fef3c7",
-        text: "#b45309",
-        gradient: "linear-gradient(to right, #f59e0b, #eab308)",
-      },
-      Nặng: {
-        bg: "#fee2e2",
-        text: "#dc2626",
-        gradient: "linear-gradient(to right, #ef4444, #f97316)",
-      },
+      "Nhẹ": { bg: "#dcfce7", text: "#15803d", gradient: "linear-gradient(to right, #22c55e, #10b981)" },
+      "Trung bình": { bg: "#fef3c7", text: "#b45309", gradient: "linear-gradient(to right, #f59e0b, #eab308)" },
+      "Nặng": { bg: "#fee2e2", text: "#dc2626", gradient: "linear-gradient(to right, #ef4444, #f97316)" },
     };
     return colors[severity] || colors["Trung bình"];
   };
@@ -149,9 +137,7 @@ const MedicalDiagnosisAI = () => {
                 <Users size={24} color="#3b82f6" />
               </div>
               <div>
-                <div style={styles.statValue}>
-                  {statistics.totalPatients || 0}
-                </div>
+                <div style={styles.statValue}>{statistics.totalPatients || 0}</div>
                 <div style={styles.statLabel}>Tổng số bệnh nhân</div>
               </div>
             </div>
@@ -177,6 +163,14 @@ const MedicalDiagnosisAI = () => {
                 <div style={styles.statLabel}>Ngày hoạt động</div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Save Success Banner */}
+        {saveSuccess && (
+          <div style={styles.successBanner}>
+            <Save size={20} />
+            <span>✅ Đã lưu kết quả vào hồ sơ bệnh án</span>
           </div>
         )}
 
@@ -232,9 +226,22 @@ VD: đau đầu, sốt, ho, mệt mỏi"
             </div>
           </div>
 
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Ghi chú (tùy chọn)</label>
+            <textarea
+              name="notes"
+              value={formData.notes}
+              onChange={handleInputChange}
+              placeholder="Thêm ghi chú về triệu chứng, tiền sử bệnh..."
+              style={{...styles.textarea, height: "80px"}}
+            />
+          </div>
+
           <button
             onClick={handleAnalyze}
-            disabled={!formData.symptoms.trim() || !formData.age || isAnalyzing}
+            disabled={
+              !formData.symptoms.trim() || !formData.age || isAnalyzing
+            }
             style={{
               ...styles.analyzeButton,
               ...(!formData.symptoms.trim() || !formData.age || isAnalyzing
@@ -245,12 +252,12 @@ VD: đau đầu, sốt, ho, mệt mỏi"
             {isAnalyzing ? (
               <>
                 <div style={styles.spinner}></div>
-                Đang phân tích...
+                Đang phân tích và lưu...
               </>
             ) : (
               <>
                 <Activity style={styles.buttonIcon} />
-                Chẩn đoán bằng AI
+                Chẩn đoán & Lưu hồ sơ
               </>
             )}
           </button>
@@ -314,8 +321,7 @@ VD: đau đầu, sốt, ho, mệt mỏi"
                         style={{
                           ...styles.progressFill,
                           width: `${result.confidence * 100}%`,
-                          background: getSeverityColor(result.severity)
-                            .gradient,
+                          background: getSeverityColor(result.severity).gradient,
                         }}
                       ></div>
                     </div>
@@ -375,6 +381,10 @@ VD: đau đầu, sốt, ho, mệt mỏi"
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateY(-20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
       `}</style>
     </div>
   );
@@ -423,6 +433,19 @@ const styles = {
   subtitle: {
     fontSize: "16px",
     color: "rgba(255, 255, 255, 0.9)",
+  },
+  successBanner: {
+    backgroundColor: "#dcfce7",
+    color: "#15803d",
+    padding: "16px",
+    borderRadius: "12px",
+    marginBottom: "16px",
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    fontWeight: "600",
+    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+    animation: "slideDown 0.5s ease-out",
   },
   statsGrid: {
     display: "grid",

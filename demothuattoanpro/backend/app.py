@@ -55,6 +55,7 @@ def register():
 @app.route("/api/records/<int:user_id>", methods=["GET"])
 def get_records(user_id):
     try:
+        print("day la user_id cua nguoi da log vao", user_id)
         records = db.get_user_medical_records(user_id)
         return jsonify({"success": True, "records": records}), 200
     except Exception as e:
