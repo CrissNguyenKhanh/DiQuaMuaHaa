@@ -7,6 +7,12 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.feature_extraction.text import CountVectorizer
 import pickle
 import os
+import joblib
+from PIL import Image
+import numpy as np
+import google.generativeai as genai
+
+# Xóa các dòng import tensorflow/keras đi nhé
 
 # --- CÁC THƯ VIỆN MỚI CHO LOGIN ---
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -19,6 +25,7 @@ from flask_jwt_extended import (
 from sqlalchemy import text  # Dùng để sửa bảng database tự động
 
 # ----------------------------------
+
 
 app = Flask(__name__)
 CORS(app)
@@ -37,6 +44,30 @@ jwt = JWTManager(app)
 # ----------------------------
 
 db = SQLAlchemy(app)
+
+
+
+# --- CẤU HÌNH AI CHAT (GEMINI) ---
+# Bạn hãy lấy Key miễn phí tại: https://aistudio.google.com/app/apikey
+# --- CẤU HÌNH AI CHAT (GEMINI) ---
+GOOGLE_API_KEY = "AIzaSyAM8D1s74ZALqpkb0gjTYu2z2THwOZst48" 
+
+genai.configure(api_key="AIzaSyAM8D1s74ZALqpkb0gjTYu2z2THwOZst48")
+
+print("Danh sách model bạn được dùng:")
+for m in genai.list_models():
+  if 'generateContent' in m.supported_generation_methods:
+    print(f"- {m.name}")
+
+# Thử fallback: Nếu 1.5 flash lỗi thì dùng gemini-pro
+try:
+    # Ưu tiên dùng model nhẹ và nhanh
+    chat_model = genai.GenerativeModel('gemini-1.5-flash')
+except:
+    # Nếu lỗi thì dùng model cũ ổn định
+    chat_model = genai.GenerativeModel('gemini-pro')
+
+chat_session = chat_model.start_chat(history=[])
 
 # =======================================================
 # MODELS (CẬP NHẬT USER ĐỂ CÓ PASS VÀ ROLE)
@@ -881,6 +912,156 @@ def health_check():
     )
 
 
+# --- LOAD MODEL HÌNH ẢNH (SCIKIT-LEARN) ---
+image_model = None
+image_classes = []
+
+try:
+    if os.path.exists("simple_image_model.pkl"):
+        image_model = joblib.load("simple_image_model.pkl")
+        image_classes = joblib.load("class_names.pkl")
+        print("✓ Đã load model hình ảnh (Scikit-learn)")
+    else:
+        print("⚠️ Chưa có file model.pkl. Chế độ ảnh sẽ dùng Random giả lập.")
+except Exception as e:
+    print(f"Lỗi load model: {e}")
+    
+# =======================================================
+# 1. API CHATBOT (GEMINI) - BẮT BUỘC PHẢI CÓ
+# =======================================================
+@app.route("/api/chat", methods=["POST"])
+def chat_with_doctor():
+    """Endpoint chat với AI Bác sĩ"""
+    try:
+        data = request.json
+        user_message = data.get("message")
+
+        if not user_message:
+            return jsonify({"success": False, "error": "Vui lòng nhập nội dung chat"}), 400
+
+        # Gửi tin nhắn đến Gemini
+        # Lưu ý: chat_session này đang dùng chung. 
+        # Nếu muốn reset lịch sử, hãy tạo chat_session mới.
+        try:
+            response = chat_session.send_message(user_message)
+            ai_reply = response.text
+        except Exception as e:
+            return jsonify({"success": False, "error": "Google AI Error: " + str(e)}), 502
+        
+        return jsonify({
+            "success": True,
+            "reply": ai_reply
+        })
+
+    except Exception as e:
+        print(f"Chat Error: {e}")
+        return jsonify({"success": False, "error": "Server Error: " + str(e)}), 500
+
+# =======================================================
+# IMAGE RECOGNITION ROUTE (MỚI)
+# =======================================================
+
+
+@app.route("/api/ai/predict-image", methods=["POST"])
+def predict_image():
+    try:
+        if "image" not in request.files:
+            return jsonify({"success": False, "error": "Không tìm thấy file"}), 400
+
+        file = request.files["image"]
+
+        # --- NẾU CÓ MODEL THẬT (SCIKIT-LEARN) ---
+        if image_model:
+            # 1. Xử lý ảnh giống hệt lúc Train (Resize 64x64, Đen trắng, Flatten)
+            img = Image.open(file).convert("L")
+            img = img.resize((64, 64))
+            img_array = np.array(img).flatten()
+
+            # Reshape để báo cho model biết đây là 1 mẫu dữ liệu
+            input_data = [img_array]
+
+            # 2. Dự đoán
+            prediction_idx = image_model.predict(input_data)[0]
+            # Lấy độ tin cậy (Probability)
+            probabilities = image_model.predict_proba(input_data)[0]
+            confidence = float(max(probabilities))
+
+            diagnosis_name = image_classes[prediction_idx]
+
+            # Logic lời khuyên
+            severity = "Trung bình"
+            recommendations = ["Theo dõi thêm"]
+
+            # Giả sử tên thư mục bạn đặt là 'Normal', 'Pneumonia', 'Covid'
+            if "Normal" in diagnosis_name or "BinhThuong" in diagnosis_name:
+                severity = "Nhẹ"
+                recommendations = ["Sức khỏe bình thường", "Duy trì thói quen tốt"]
+            elif "Pneumonia" in diagnosis_name or "ViemPhoi" in diagnosis_name:
+                severity = "Nặng"
+                recommendations = [
+                    "Cần chụp X-quang lại",
+                    "Thăm khám bác sĩ hô hấp",
+                    "Dùng thuốc theo chỉ định",
+                ]
+
+            result = {
+                "diagnosis": diagnosis_name,
+                "severity": severity,
+                "confidence": confidence,
+                "recommendations": recommendations,
+            }
+
+        # --- NẾU KHÔNG CÓ MODEL (Dùng Random giả lập) ---
+        else:
+            # ... (Giữ nguyên code Random cũ ở đây) ...
+            mock_diseases = [
+                {
+                    "diagnosis": "Giả lập: Viêm phổi",
+                    "severity": "Nặng",
+                    "recommendations": ["Đi khám gấp"],
+                },
+                {
+                    "diagnosis": "Giả lập: Bình thường",
+                    "severity": "Nhẹ",
+                    "recommendations": ["Tốt"],
+                },
+            ]
+            import random
+
+            temp = random.choice(mock_diseases)
+            result = {
+                "diagnosis": temp["diagnosis"],
+                "severity": temp["severity"],
+                "confidence": 0.85,
+                "recommendations": temp["recommendations"],
+            }
+
+        # Lưu Database (Giữ nguyên code cũ)
+        user_id = 1
+        record = MedicalRecord(
+            user_id=user_id,
+            symptoms=f"[Hình ảnh] {file.filename}",
+            age=30,
+            gender="Ẩn",
+            diagnosis=result["diagnosis"],
+            confidence=result["confidence"],
+            severity=result["severity"],
+            notes="AI Image Scan (Scikit-learn)",
+        )
+        db.session.add(record)
+        db.session.commit()
+
+        return jsonify({"success": True, "prediction": result, "record_id": record.id})
+
+    except Exception as e:
+        print(f"Lỗi: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+ 
+    
+    
+    
+    
 if __name__ == "__main__":
     print("=" * 60)
     print("🏥 MEDICAL DIAGNOSIS API - KHỞI ĐỘNG")
